@@ -4,6 +4,7 @@
 import random
 import datetime as dt
 from pathlib import Path
+from PIL import Image, ImageOps
 
 import streamlit as st
 from algo_problems import PROBLEMS  # PROBLEMS: [{"id","title","body","hint","solution"}, ...]
@@ -23,6 +24,7 @@ st.set_page_config(
 BASE_DIR = Path(__file__).parent
 LETTERS_DIR = BASE_DIR / "letters"
 ASSETS_DIR = BASE_DIR / "assets"
+
 
 # ---------------------------
 # Data
@@ -66,28 +68,39 @@ def find_person_image(slug: str):
     return _find_asset(slug)
 
 def find_person_images(slug: str):
-    # assets 폴더에서 slug로 시작하는 이미지 전부 찾기 (예: seuk_1.jpg, seuk_2.png ...)
     exts = {".jpg", ".jpeg", ".png", ".webp"}
-    paths = []
-    if ASSETS_DIR.exists():
-        for p in ASSETS_DIR.iterdir():
-            if p.is_file() and p.suffix.lower() in exts and p.stem.lower().startswith(slug.lower()):
-                paths.append(str(p))
-    # 보기 좋게 파일명 기준 정렬
-    paths.sort()
-    return paths
+    if not ASSETS_DIR.exists():
+        return []
 
-def render_image_gallery(paths: list[str]):
+    s = slug.strip()
+    imgs = [
+        p for p in ASSETS_DIR.iterdir()
+        if p.is_file()
+        and p.suffix.lower() in exts
+        and p.stem.startswith(s)   # ✅ "세욱"으로 시작하면 다 잡힘: 세욱_1, 세욱_2, 세욱(1) 등
+    ]
+    imgs.sort(key=lambda p: p.name)
+    return [str(p) for p in imgs]
+
+
+def open_img_fix_orientation(path: str):
+    img = Image.open(path)
+    # ✅ EXIF orientation 반영해서 “정방향”으로 만들어줌
+    img = ImageOps.exif_transpose(img)
+    return img
+
+def render_image_gallery(paths: list[str], cols: int = 2):
     if not paths:
         return
-    # 1장은 그냥 크게, 여러 장이면 2~3열 갤러리
     if len(paths) == 1:
-        st.image(paths[0], use_container_width=True)
-    else:
-        cols = st.columns(2, gap="small")  # 2열 (원하면 3으로 바꿔도 됨)
-        for i, img_path in enumerate(paths):
-            with cols[i % 2]:
-                st.image(img_path, width="stretch")
+        st.image(open_img_fix_orientation(paths[0]), width="stretch")
+        return
+
+    columns = st.columns(cols, gap="small")
+    for i, img_path in enumerate(paths):
+        with columns[i % cols]:
+            st.image(open_img_fix_orientation(img_path), width="stretch")
+
 
 
 def load_md(slug: str) -> str:
@@ -244,13 +257,14 @@ for i, person in enumerate(PEOPLE):
 
         with right:
             st.markdown('<div class="card">', unsafe_allow_html=True)
-            img = find_person_image(person["slug"])
-            if img:
-                st.image(img, use_container_width=True)
+            imgs = find_person_images(person["slug"])
+            if imgs:
+                render_image_gallery(imgs, cols=2)  # 2열 갤러리 (원하면 3으로 바꿔도 됨)
             else:
                 st.markdown(
-                    f'<div class="small-muted">사진을 넣고 싶으면 아래 파일을 추가해줘:</div>'
-                    f'<div class="small-muted"><code>assets/{person["slug"]}.jpg</code> (또는 png/webp)</div>',
+                    f'<div class="small-muted">사진을 넣으려면 파일명을 이렇게 맞춰줘:</div>'
+                    f'<div class="small-muted"><code>assets/{person["slug"]}_1.jpg</code>, '
+                    f'<code>assets/{person["slug"]}_2.png</code> ...</div>',
                     unsafe_allow_html=True,
                 )
             st.markdown("</div>", unsafe_allow_html=True)
@@ -273,7 +287,7 @@ with tabs[-1]:
         top = st.columns([1, 1, 3], gap="medium")
 
         with top[0]:
-            if st.button("🎲 랜덤 뽑기", use_container_width=True):
+            if st.button("🎲 랜덤 뽑기", width="stretch"):
                 st.session_state.picked_idx = random.randrange(n_probs)
 
         with top[1]:
