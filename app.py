@@ -203,10 +203,17 @@ with st.sidebar:
     st.markdown("---")
 
     target = dt.date(2026, 1, 19)
-    today = dt.date.today()
-    diff = (target - today).days
+
+    # ✅ KST 기준 '오늘' (서버가 UTC여도 항상 한국 날짜로 계산)
+    today_kst = (dt.datetime.utcnow() + dt.timedelta(hours=9)).date()
+
+    diff = (target - today_kst).days
+
     st.markdown("### ⏳ D-Day")
-    st.metric("입대까지", f"D-{max(diff, 0)}")
+    if diff >= 0:
+        st.metric("입대까지", f"D-{diff}")
+    else:
+        st.metric("입대 후", f"D+{-diff}")
 
     st.markdown("---")
     st.markdown("### 🧩 구성")
